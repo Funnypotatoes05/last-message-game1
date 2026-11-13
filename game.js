@@ -92,17 +92,24 @@ function choose(s,n){
   else if(s.heat>=6)s.ending='door';
   else s.ending='rumor';
   if(s.ending==='door'){
-   msg(s,'Jordan','i’m outside 3D');
-   msg(s,'Sam','i left it in the window so you could find me if you needed help');
-   msg(s,'Maya','','typing');
+   msg(s,'Jordan','i knocked twice. he won’t open it');
+   msg(s,'Sam','jordan i’m behind you');
+   msg(s,'Jordan','then who just knocked back','chat','knock');
+   msg(s,'Sam','','typing');
   }else if(s.ending==='together'){
-   msg(s,'Jordan','okay. i’m coming back down');
-   msg(s,'Maya','anyone still need a flashlight?');
+   msg(s,'Jordan','sam. i’m sorry. i’m coming back down');
+   msg(s,'Sam','wait. take the lantern with you');
+   msg(s,'Maya','leave it in the window. there’s someone crossing the courtyard');
+   msg(s,'Maya','they’re using it to find us');
   }else if(s.ending==='official'){
-   msg(s,'Night desk','Stay on the landing. We’ll check the panel.');
+   msg(s,'Night desk','Stay on the landing. We’re on our way to the panel.','chat','knock');
+   msg(s,'Jordan','wait, are you guys at the end of the hall');
+   msg(s,'Night desk','We’re on the first floor. Don’t go any closer.');
   }else{
-   msg(s,'Eli','someone just forwarded the photo again');
-   msg(s,'Maya','did they leave out what we just said?');
+   msg(s,'Eli','they put sam’s room number on the photo');
+   msg(s,'Sam','someone slid a printout of it under my door');
+   msg(s,'Sam','it has my name on it');
+   msg(s,'Sam','i never told anyone outside this chat where i live');
   }
   break;}
  }
@@ -110,7 +117,7 @@ function choose(s,n){
  s.stage++;
  if(s.stage===1)msg(s,'Eli','i think that’s my picture');
  if(s.stage===2)msg(s,'Jordan','sam. answer the chat');
- if(s.stage===3){msg(s,'Maya','just heard two clicks upstairs');msg(s,'Jordan','he’s messing with the power');}
+ if(s.stage===3){msg(s,'Maya','just heard two clicks upstairs','chat','knock');msg(s,'Jordan','he’s messing with the power');}
  if(s.stage===4)msg(s,'Jordan','i’m on three. i can see the light under his door');
  if(s.stage===5)msg(s,'Maya','everyone in the building chat is waiting for us to say what happened');
 }
@@ -123,6 +130,37 @@ if(typeof document!=='undefined'){
  const wait=ms=>new Promise(r=>setTimeout(r,ms));
  function element(tag,text,cls){const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;}
  function control(text,fn){const e=element('button',text);e.type='button';e.onclick=fn;return e;}
+ let audioContext, soundOn=false;
+ const sound=control('Sound off',async ()=>{
+  if(soundOn){soundOn=false;syncSound();return;}
+  try{
+   const Audio=window.AudioContext||window.webkitAudioContext;
+   if(!Audio)throw new Error('Audio unavailable');
+   audioContext ||= new Audio();
+   await audioContext.resume();
+   soundOn=true;syncSound();cue('text');
+  }catch{sound.textContent='Sound unavailable';sound.disabled=true;}
+ });
+ function syncSound(){sound.textContent=soundOn?'Sound on':'Sound off';sound.setAttribute('aria-pressed',String(soundOn));}
+ sound.style.cssText='margin-top:6px;border:0;border-radius:12px;padding:4px 9px;background:#eaeaec;color:#42434a;font-size:11px';
+ syncSound();
+ document.querySelector('.phone header').append(sound);
+ function cue(kind){
+  if(!soundOn||audioContext?.state!=='running')return;
+  const t=audioContext.currentTime;
+  const notes=kind==='knock'?[[0,107,.14],[.27,89,.14]]:[[0,570,.085]];
+  for(const [delay,hz,length] of notes){
+   const start=t+delay, osc=audioContext.createOscillator(), gain=audioContext.createGain();
+   osc.type=kind==='knock'?'triangle':'sine';
+   osc.frequency.setValueAtTime(hz,start);
+   osc.frequency.exponentialRampToValueAtTime(hz*.75,start+length);
+   gain.gain.setValueAtTime(.0001,start);
+   gain.gain.exponentialRampToValueAtTime(kind==='knock'?.13:.055,start+.012);
+   gain.gain.exponentialRampToValueAtTime(.0001,start+length);
+   osc.connect(gain);gain.connect(audioContext.destination);
+   osc.start(start);osc.stop(start+length);
+  }
+ }
  function bottom(){thread.scrollTop=thread.scrollHeight;}
  function name(m){return m.who+(m.channel==='dm'?' · private text':'');}
  function dots(m){
@@ -143,7 +181,7 @@ if(typeof document!=='undefined'){
  }
  function ready(){
   if(state.ending){
-   messages.append(element('p',endings[state.ending].copy,'notice'));
+   messages.append(element('p','End of conversation','notice'));
    replies.append(control('Play again',begin));
   }else{
    replies.append(element('small','Choose a reply'));
@@ -162,7 +200,9 @@ if(typeof document!=='undefined'){
     if(m.channel==='typing'){await wait(400);continue;}
    }
    if(id!==run)return;
-   show(m);bottom();await wait(220);
+   show(m);
+   if(m.who!=='You'&&m.who!=='System')cue(m.attachment==='knock'?'knock':'text');
+   bottom();await wait(m.attachment==='knock'?620:220);
   }
   if(id===run)ready();
  }
